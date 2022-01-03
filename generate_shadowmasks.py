@@ -1,9 +1,11 @@
 import shutil
 from pathlib import PurePath, Path
 
-from masks import *
 
 # cur_dir = os.path.dirname(os.path.abspath(__file__))
+MASK_ROOT = "masks"
+MASK_SEPARATOR = ","
+
 OUTPUT_DIRECTORY = (
     PurePath(__file__).parents[1] /
     "ShadowMasks_MiSTer" /
@@ -30,127 +32,83 @@ STEPS = 15
 # yellow  6
 # white   7
 
-# stripes
-STRIPES = {
-    "Magenta-Green":    [[5, 2]],
-    "Monochrome":       [[7, 7, 0]],
-    "RYCB":             [[4, 6, 3, 1]],
-    "Thin RGB":         [[4, 2, 1]],
-}
 
-GRID = {
-    "Magenta-Green": [
-        [0, 0, 0, 5, 2, 0],
-        [5, 2, 0, 5, 2, 0],
-        [5, 2, 0, 0, 0, 0],
-        [5, 2, 0, 5, 2, 0],
-    ],
-    "Monochrome": [
-        [0, 0, 0, 7, 7, 0],
-        [7, 7, 0, 7, 7, 0],
-        [7, 7, 0, 0, 0, 0],
-        [7, 7, 0, 7, 7, 0],
-    ],
-    "RGB Lean": [
-        [0, 0, 0, 0, 0, 0, 4, 4, 2, 2, 1, 1],
-        [4, 4, 2, 2, 1, 1, 4, 4, 2, 2, 1, 1],
-        [4, 4, 2, 2, 1, 1, 4, 4, 2, 2, 1, 1],
-        [4, 4, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0],
-        [4, 4, 2, 2, 1, 1, 4, 4, 2, 2, 1, 1],
-        [4, 4, 2, 2, 1, 1, 4, 4, 2, 2, 1, 1],
-    ],
-    "RGB": [
-        [0, 0, 0, 0, 0, 0, 0, 4, 4, 2, 2, 1, 1, 0],
-        [4, 4, 2, 2, 1, 1, 0, 4, 4, 2, 2, 1, 1, 0],
-        [4, 4, 2, 2, 1, 1, 0, 4, 4, 2, 2, 1, 1, 0],
-        [4, 4, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-        [4, 4, 2, 2, 1, 1, 0, 4, 4, 2, 2, 1, 1, 0],
-        [4, 4, 2, 2, 1, 1, 0, 4, 4, 2, 2, 1, 1, 0],
-    ],
-    "RYCB Lean": [
-        [0, 0, 0, 0, 4, 6, 3, 1],
-        [4, 6, 3, 1, 4, 6, 3, 1],
-        [4, 6, 3, 1, 0, 0, 0, 0],
-        [4, 6, 3, 1, 4, 6, 3, 1],
-    ],
-    "RYCB": [
-        [0, 0, 0, 0, 0, 4, 6, 3, 1, 0],
-        [4, 6, 3, 1, 0, 4, 6, 3, 1, 0],
-        [4, 6, 3, 1, 0, 0, 0, 0, 0, 0],
-        [4, 6, 3, 1, 0, 4, 6, 3, 1, 0],
-    ],
-    "Squished VGA": [
-        [4, 4, 2, 2, 1, 1],
-        [2, 1, 1, 4, 4, 2],
-    ],
-    "Thin RGB Lean": [
-        [0, 0, 0, 4, 2, 1],
-        [4, 2, 1, 4, 2, 1],
-        [4, 2, 1, 0, 0, 0],
-        [4, 2, 1, 4, 2, 1],
-    ],
-    "Thin RGB": [
-        [0, 0, 0, 0, 4, 2, 1, 0],
-        [4, 2, 1, 0, 4, 2, 1, 0],
-        [4, 2, 1, 0, 0, 0, 0, 0],
-        [4, 2, 1, 0, 4, 2, 1, 0],
-    ],
-    "VGA": [
-        [4, 4, 2, 2, 1, 1],
-        [4, 4, 2, 2, 1, 1],
-        [2, 1, 1, 4, 4, 2],
-        [2, 1, 1, 4, 4, 2],
-    ],
-}
+class Mask:
+    def __init__(self, mask_path):
+        self.path = Path(mask_path)
+        # self.name = self.path.stem
+        self.directory = PurePath(self.path).parent.relative_to(MASK_ROOT)
+        self.matrix = []
 
+        with self.path.open() as f:
+            nonblank_lines = filter(None, (line.rstrip() for line in f))
+            for line in nonblank_lines:
+                if line.strip().startswith("#"):  # allow for commented lines
+                    continue
+                line_array = line.strip().replace(' ', '').split(MASK_SEPARATOR)
+                self.matrix.append(line_array)
 
-def generate_mask_files(path, name, mask_matrix, br_level):
+    def generate_mask_files(self):
+        for on_level in range(STEPS):
+            if on_level % 2 != 0:  # only execute every 2nd iteration
+                continue
 
-    for i in range(STEPS):
-        if i % 2 != 0:  # only execute every 2nd iteration
-            continue
+            for br_name, off_level in BRIGHTNESS_LEVELS.items():
+                matrix = self.convert_matrix(on_level, off_level)
 
-        f_name = f'{name}'
+                # output directory
+                path = (
+                    Path(OUTPUT_DIRECTORY) /
+                    self.directory.name.title() /
+                    br_name.title()
+                    )
+                # create brightness folders when off_state > 100%
+                if on_level != 0:
+                    path = (
+                        path /
+                        'Brightness++' /
+                        f'Brightness {100 + round(FACTOR * on_level)}%'
+                        )
 
-        _path = Path(path) if i == 0 else (
-            Path(path) /
-            'Brightness++' /
-            f'Brightness {100 + round(FACTOR * i)}%'
-            )
-        _path.mkdir(parents=True, exist_ok=True)
+                path.mkdir(parents=True, exist_ok=True)
 
-        with open(PurePath(_path) / f'{f_name}.txt', "w") as f:
+                self.create_mask_file(
+                    matrix,
+                    path / self.path.name  # final output path
+                    )
+
+    def convert_matrix(self, on_level, off_level):
+        matrix = self.matrix
+
+        for j in range(len(matrix)):
+            for i in range(len(matrix[0])):
+                print(matrix[j][i])
+                matrix[j][i] = [int(matrix[j][i][0]), on_level, off_level]
+
+        return matrix
+
+    @classmethod
+    def create_mask_file(cls, matrix, output_path):
+
+        with Path(output_path).open("w") as f:
             f.write("v2\n\n")
-            f.write(f'{len(mask_matrix[0])},{len(mask_matrix)}')
+            f.write(f'{len(matrix[0])},{len(matrix)}')
             f.write("\n\n")
-            # f.writelines(convert_matrix(mask_matrix, i + 1, br_level))
 
-            for row in mask_matrix:
-                f.write(','.join([f'{value}{i:x}{br_level:x}' for value in row]))
+            for row in matrix:
+                f.write(','.join([f'{val[0]:x}{val[1]:x}{val[2]:x}' for val in row]))
                 f.write("\n")
 
 
-def convert_matrix(matrix, on_level, off_level):
-    for row in matrix:
-        for value in row:
-            matrix[row][value] = f'i,{hex(on_level)},{hex(off_level)}'
-    return matrix
+def load_masks():
+    msk_all = sorted(Path('.').glob('**/*.txt'))
+
+    for msk_path in msk_all:
+        Mask(msk_path).generate_mask_files()
 
 
 # Delete all filters and regenerate them
 if Path(OUTPUT_DIRECTORY).exists():
     shutil.rmtree(OUTPUT_DIRECTORY)
 
-# STRIPES
-for br_name, br_level in BRIGHTNESS_LEVELS.items():
-    for mask_name, mask_matrix in STRIPES.items():
-        path = PurePath(OUTPUT_DIRECTORY) / "Stripes" / br_name.title()
-
-        generate_mask_files(path, mask_name, mask_matrix, br_level)
-
-# GRID
-for br_name, br_level in BRIGHTNESS_LEVELS.items():
-    for mask_name, mask_matrix in GRID.items():
-        path = PurePath(OUTPUT_DIRECTORY) / "Grid" / br_name.title()
-
-        generate_mask_files(path, mask_name, mask_matrix, br_level)
+load_masks()
