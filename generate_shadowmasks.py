@@ -14,9 +14,9 @@ OUTPUT_DIRECTORY = (
     )
 
 BRIGHTNESS_LEVELS = {
-    "strong definition": 4,
-    "light definition": 8,
-    "extra light definition": 10,
+    "distinct visibility": 4,
+    "subtle visibility": 8,
+    "extra subtle visibility": 10,
 }
 
 FACTOR = 6.25
