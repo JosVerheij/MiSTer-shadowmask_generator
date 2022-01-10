@@ -40,5 +40,5 @@ if Path(OUTPUT_DIRECTORY).exists():
     shutil.rmtree(OUTPUT_DIRECTORY)
 
 o = Organiser()
-o.collect_mask_files(MASK_ROOT)
-o.generate_mask_files(OUTPUT_DIRECTORY)
+o.collect_pattern_files(MASK_ROOT)
+o.generate_pattern_files(OUTPUT_DIRECTORY)
