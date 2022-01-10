@@ -4,7 +4,7 @@ from mask import Mask
 # TODO: implement mask import function
 
 PATTERN_SEPARATOR = ','
-PATTERN_ROOT = "masks2"
+PATTERN_ROOT = "masks"
 
 
 class Organiser:
