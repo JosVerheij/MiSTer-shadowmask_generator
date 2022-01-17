@@ -1,0 +1,20 @@
+480p_RGB_stripe_XL_def25.txt
+
+[RESOLUTION]_[NAME]_[TYPE]_[OPACITY].txt
+
+Folders:
+
+1440p/
+|--Recommended/
+  |--Brighter/
+    |--105pct Brightness/
+    |--480p_RGB_stripe_XL_br25.txt
+  |--480p_RGB_stripe_XL_br25.txt
+
+  |--Grid/
+
+
+Sort By... Brightness
+Sort By... Resolution V
+Sort By... Resolution HV
+

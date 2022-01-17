@@ -1,11 +1,11 @@
 # Author: Jovec
 # Name: RGB
+# Type: Dot Mask
 # dots_horizontal: 2
 
-
-6,3
+6,4
 
 0, 0, 0, 4, 2, 1
 4, 2, 1, 4, 2, 1
 4, 2, 1, 0, 0, 0
-#4, 2, 1, 4, 2, 1
+4, 2, 1, 4, 2, 1

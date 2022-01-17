@@ -1,1 +1,6 @@
+# Author: Jovec
+# Name: RYCB
+
+4,1
+
 4, 6, 3, 1

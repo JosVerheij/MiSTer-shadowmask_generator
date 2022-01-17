@@ -84,17 +84,24 @@ class Mask:
     # calculated brightness levels, such as normalised (maybe)
     brightness_levels = {}
 
-    def __init__(self, name, matrix, n_dots=1, resolution=0, limit=193.75):
+    def __init__(self, name, matrix, author, n_dots, pattern_type, limit):
         self.name = name
+        self.author = author or ""
         self.pattern = Pattern(matrix, compute=True)
-        self.resolution = resolution
-        self.limit = limit
+        self.type = pattern_type or "grid"
+        self.limit = limit or 193.75
+        self.dots = n_dots or 1
 
-        dotparts_per_dot = self.pattern.get_size() / n_dots
+        ppd = self.pattern.get_size() / self.dots  # parts per dot
         aspect_ratio = self.pattern.width / self.pattern.height
 
-        self.dots_h = aspect_ratio * dotparts_per_dot
-        self.dots_v = (1 / aspect_ratio) * dotparts_per_dot
+        # TODO: check if this is correct
+        self.dots_h = (
+            aspect_ratio * ppd / self.pattern.width / self.dots
+            )
+        self.dots_v = (
+            (1 / aspect_ratio) * ppd / self.pattern.height / self.dots
+            )
 
         # "brightness" for on state, "opacity" for off_state
         # max brightness of lowes on_state (without clipping)
@@ -112,9 +119,10 @@ class Mask:
     def get_max_res_h(self, output_res_h):
         pass
 
-    def get_br_desired_matrix(self, br_desired):
+    def get_br_desired_matrix(self, br_desired, op_desired):
         # convert percentage from 1xx to 1.xx
         br_desired *= 0.01 if br_desired >= 100 else 1
+        op_desired *= 0.01 if op_desired > 1 else 1
 
         # matrix = Pattern(self.pattern.matrix).matrix
         matrix = []
@@ -131,7 +139,9 @@ class Mask:
                 dot["on"] = (
                     src_dot["on"] + src_dot["ratio"] * gap
                     )
-                dot["off"] = src_dot["off"]  # * src_dot["ratio_off"] * self.opacity_base
+                # TODO: enable calculated off state
+                # dot["off"] = src_dot["off"]  # * src_dot["ratio_off"] * self.opacity_base
+                dot["off"] = op_desired  # * src_dot["ratio_off"] * self.opacity_base
 
                 row.append(dot)
             matrix.append(row)

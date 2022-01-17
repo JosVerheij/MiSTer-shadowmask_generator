@@ -20,32 +20,66 @@ class Organiser:
     def collect_pattern_files(self, input_dir):
         for path in sorted(Path(PATTERN_ROOT).glob('**/*.txt')):
             # self.file_paths.append(path)
-            self.import_pattern_file(path)
+            self.import_mask_file(path)
 
-    def import_pattern_file(self, file_path):
+    def import_mask_file(self, file_path):
         # file_path = PurePath(file_path)
-        name = file_path.stem
         matrix = []
 
+        loaded, v2 = False
+
+        w, h, y = -1, -1, 0
+
+        descr = {}
+
         with file_path.open() as f:
-            nonblank_lines = filter(None, (line.rstrip() for line in f))
-            for line in nonblank_lines:
-                if line.strip().startswith("#"):  # allow for commented lines
-                    continue
 
-                line_array = line.strip().replace(' ', '').split(PATTERN_SEPARATOR)
+            for line in f:
 
-                dot_row = []
+                # Parsing the 'pre-amble'
+                if line.rstrip().startswith('#'):
 
-                for dot_txt in line_array:
-                    dotpart = {}
-                    dotpart["color"] = int(dot_txt[0], 16)
-                    dotpart["on"] = int(dot_txt[1], 16) if len(dot_txt) > 1 else 0
-                    dotpart["off"] = int(dot_txt[2], 16) if len(dot_txt) > 2 else 0
+                    if m := re.match('^\s*#\s*(?P<key>\w):\s.(?P<val>\w+)\s.$', line):
 
-                    dot_row.append(dotpart)
+                        for k, v in m.groupdict():
+                            if k.upper() in ['NAME', 'AUTHOR', 'DOTS']:
+                                descr[k.upper()] = v
+                                continue
 
-                matrix.append(dot_row)
+
+                if w == -1:
+                    if line.upper() == "V2":
+                        v2 = True
+                        continue
+
+                    if line.upper()[:11] == "RESOLUTION=":
+                        continue
+
+                    # Stop parsing if width, height is not defined
+                    # NB: n, w, and h are defined here
+                    w, h = (n := [int(i) for i in line.split(',')])[:2]; n = len(n)
+                    if n != 2 or w <= 0 or h <= 0 or w > 16 or h > 16:
+                        break
+
+                # parsing the mask matrix
+                else:
+                    p = [hex(i) for i in line.split(',')]
+                    # break if number of positions in line does not equal mask width
+                    if len(p) != w:
+                        break
+
+                    #  do something useful with the mask line here
+                    # TOOD: check if bitwise operation is necessary at this point
+                    p[x] = p[x] & 0x7FF if v2 else ((p[x] & 7) << 8) | 0x2A for x in range(len(p))
+                    y += 1
+
+                    if y == h:
+                        loaded = True
+
+        if not loaded:
+            # if loaded==False then mask was not fully loaded, so fail gracefully or something
+            pass
+
 
         matrix = self.parse_matrix(matrix)
 
@@ -55,24 +89,33 @@ class Organiser:
             "directory": directory,
             })
 
+    def set_br_levels(self, br_levels):
+        self._br_levels = br_levels
+
     # TODO: rename function into sometime that is not almost the same as
     # 'self.create_pattern_file()'
     def generate_pattern_files(self, output_dir, normalised=True):
         # todo brightness directory and layout
 
         brightness_levels = [1.0, 1.1, 1.25, 1.5, 1.75]
+        opacity_levels = {
+            "dark": 0.25, "light": 0.50, "extra light": 0.75
+        }
 
         for msk_f in self.maskfiles:
+            for name, opacity in opacity_levels.items():
 
-            for br_level in brightness_levels:
-                pattern_matrix = msk_f["mask"].get_br_desired_matrix(br_level)
-                output_path = (
-                    output_dir /
-                    msk_f["directory"] /
-                    f'Brightness {round(br_level*100)}%' /
-                    f'{msk_f["mask"].name}.txt'
-                    )
-                self.create_pattern_file(pattern_matrix, output_path)
+                for br_level in brightness_levels:
+                    pattern_matrix = msk_f["mask"].get_br_desired_matrix(
+                        br_level, opacity
+                        )
+                    output_path = (
+                        output_dir /
+                        msk_f["directory"] /
+                        f'Brightness {round(br_level*100)}%' /
+                        f'{msk_f["mask"].name} {name}.txt'
+                        )
+                    self.create_pattern_file(pattern_matrix, output_path)
 
     def create_pattern_file(self, matrix, output_path):
         # TODO: emp hack to get around blocking on too bright matrices
