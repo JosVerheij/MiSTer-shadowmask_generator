@@ -167,8 +167,8 @@ def write_mask_file(msk, path):
             f.write(f'# Author: {SM_AUTHOR}\n') if not SM_AUTHOR is None else None
             f.write(f'# Name: {SM_NAME}\n') if not SM_NAME is None else None
             f.write('#\n')
-            f.write(f'# dots_horizontal: {SM_DOTS_H:f}\n')
-            f.write(f'# dots_vertical: {SM_DOTS_V:f}\n')
+            f.write(f'# dots_horizontal: {SM_DOTS_H:1f}\n')
+            f.write(f'# dots_vertical: {SM_DOTS_V:1f}\n')
             f.write('\n')
             f.write('v2\n')
             f.write('\n')
@@ -176,7 +176,7 @@ def write_mask_file(msk, path):
             f.write('\n')
 
             for row in msk:
-                f.write(','.join([f'{p:x}' for p in row]))
+                f.write(','.join([f'{p:0{3}x}' for p in row]))
                 f.write('\n')
 
 
