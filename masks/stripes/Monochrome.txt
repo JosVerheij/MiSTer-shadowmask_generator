@@ -1,6 +1,0 @@
-# Author: Jovec
-# Name: Monochrome
-
-3,1
-
-7, 7, 0

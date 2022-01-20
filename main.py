@@ -8,7 +8,7 @@ OUTPUT_DIRECTORY = (
     Path(__file__).parents[1] /
     "ShadowMasks_MiSTer" /
     "Shadow_Masks" /
-    "MyCustom Masks"
+    "Jovec Masks"
     )
 
 if Path(OUTPUT_DIRECTORY).exists():
@@ -16,9 +16,9 @@ if Path(OUTPUT_DIRECTORY).exists():
 
 msk.set_intensity_levels(
     [100, 110, 125, 137.5, 150],
-    [25, 37.5, 50],
+    [25, 37.5, 50]
     )
-for path in sorted(Path('approved').glob('**/*.txt')):
+for path in sorted(Path('masks').glob('**/*.txt')):
     msk.get_mask_file(path)
     msk.new_mask_file(OUTPUT_DIRECTORY, 1440)
     msk.new_mask_file(OUTPUT_DIRECTORY, 1080)

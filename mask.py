@@ -103,7 +103,7 @@ def get_sm_matrix(pct_on, pct_off):
         m.append([
             (
                 (SM_MATRIX[j][i] & 0x700) +
-                ((v_on & 0xF) << 4) +
+                ((v_on & 0xF0) << 4) +
                 (v_off & 0xF)
                 ) for i in range(len(SM_MATRIX[0]))
             ])
@@ -176,7 +176,7 @@ def write_mask_file(msk, path):
             f.write('\n')
 
             for row in msk:
-                f.write(','.join([f'{p:0{3}x}' for p in row]))
+                f.write(','.join([f'{p:x}' for p in row]))
                 f.write('\n')
 
 
