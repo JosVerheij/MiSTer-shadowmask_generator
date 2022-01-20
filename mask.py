@@ -1,225 +1,198 @@
+from pathlib import Path
+import re
+
+ON_LEVElS, OFF_LEVELS = [], []
+
+# fb_width, fb_height = 0, 0
+# i_on, i_off = 0, 0
 
 
-# class DotPart:
-#     ratio = 1
+def get_mask_file(file_path):
+    # SM_NAME = Path(file_path.stem)
 
-#     def __init__(self, color, on=0, off=0):
-#         self.color = color
-#         self.on = on
-#         self.off = off
+    with file_path.open() as f:
+        get_mask(f)
 
 
-# Pattern class
-class Pattern:
-    # Note: format of the 'dot part':
-    # {
-    #     "color":  int with range(0,7)
-    #     "on":     float of pct of brightness (e.g. "1.25")
-    #     "off":    float of pct of opacity (e.g. "0.75")
-    # }
+def get_mask(text):
+    global SM_AUTHOR, SM_NAME, SM_TYPE, SM_DOTS_H, SM_DOTS_V, SM_MATRIX
 
-    def __init__(self, matrix, compute=False):
-        self.matrix = matrix
-        self.width = len(self.matrix[0])
-        self.height = len(self.matrix)
+    # file_path = PurePath(file_path)
 
-        if compute:
-            self.__compute_ratios()
+    SM_DOTS_H, SM_DOTS_V = 1.0, 1.0
+    SM_AUTHOR, SM_NAME, SM_TYPE = None, None, None
+    SM_MATRIX = []
 
-    def get_size(self):
-        return self.width * self.height
+    loaded, v2 = False, False
 
-    def get_color_count(self, color, weighted=False, on_weighted=True):
-        count = 0
-        for row in self.matrix:
-            for part in row:
-                if part["color"] != color:
-                    continue
-                if weighted:
-                    count += 1 * part["ratio"]  # if on_weighted else 1 * part.off_ratio
-                else:
-                    count += 1
-        return count
+    w, h, y = -1, -1, 0
 
-    def get_min_on_state(self):
-        min_values = []
+    for line in [line.strip() for line in text]:
+        # skip empty lines
+        if not line.strip():
+            continue
 
-        for row in self.matrix:
-            for part in row:
-                if part["color"] != 0:
-                    min_values.append(part["on"])
+        if w == -1:
+            # Parsing the 'pre-amble'
+            if line.strip().startswith('#'):
 
-        return (min(min_values))
+                if m := re.match(r'^\s*#\s*(?P<k>\w+)\s*:\s*(?P<v>.+)\s*$', line):
+                    if m.group('k').upper() == "AUTHOR":
+                        SM_AUTHOR = str(m.group('v').strip())
+                    elif m.group('k').upper() == "NAME":
+                        SM_NAME = str(m.group('v').strip())
+                    elif m.group('k').upper() == "TYPE":
+                        SM_TYPE = str(m.group('v').strip())
+                    elif m.group('k').upper() == "DOTS_HORIZONTAL":
+                        SM_DOTS_H = float(m.group('v').strip())
+                    elif m.group('k').upper() == "DOTS_VERTICAL":
+                        SM_DOTS_V = float(m.group('v').strip())
+                continue
 
-    def get_min_off_state(self):
-        # TODO:
+            if line.upper() == "V2":
+                v2 = True
+                continue
+
+            if line.upper()[:11] == "RESOLUTION=":
+                continue
+
+            # Stop parsing if width, height is not defined
+            # NB: n, w, and h are defined here
+            w, h = (n := [int(i) for i in re.sub(r'\s+', '', line).split(',')])[:2]
+            n = len(n)
+            if n != 2 or w <= 0 or h <= 0 or w > 16 or h > 16:
+                break
+
+        # parsing the mask matrix
+        else:
+            if line.lstrip().startswith('#'):
+                continue
+
+            p = [int(i, 16) for i in re.sub(r'\s+', '', line).split(',')]
+            # break if number of positions in line does not equal mask width
+            if len(p) != w:
+                break
+
+            #  do something useful with the mask line here
+            # TOOD: check if bitwise operation is necessary at this point
+            SM_MATRIX.append(
+                [p[x] & 0x7FF if v2 else ((p[x] & 7) << 8) | 0x2A for x in range(len(p))]
+                )
+            y += 1
+
+            if y == h:
+                loaded = True
+
+    if not loaded:
+        # if loaded==False then mask was not fully loaded, so fail gracefully or something
         pass
 
-    def get_max_ratio(self, on_state=True):
-        ratios = []
 
-        if on_state:
-            for row in self.matrix:
-                for part in row:
-                    ratios.append(part["ratio"])
+# TODO: currently is simple replacement of existing on and off levels
+#       in future will make it so that brightness ratio is taken into
+#       account.
+def get_sm_matrix(pct_on, pct_off):
+    v_on = intensity_b(pct_on)
+    v_off = intensity_b(pct_off)
 
-        return max(ratios)
+    m = []
 
-    # TODO: also compute ratios for off_state maybe
-    def __compute_ratios(self):
-        min_state = self.get_min_on_state()
-        min_state = min_state
+    # w, h = len(SM_MATRIX), len(SM_MATRIX[0])
 
-        for row in self.matrix:
-            for part in row:
-                part["ratio"] = part["on"] / min_state if (
-                    part["color"] != 0) else 1
+    for j in range(len(SM_MATRIX)):
+        m.append([
+            (
+                (SM_MATRIX[j][i] & 0x700) +
+                ((v_on & 0xF) << 4) +
+                (v_off & 0xF)
+                ) for i in range(len(SM_MATRIX[0]))
+            ])
+
+    return m
 
 
-class Mask:
-    # Properties to be added:
-    # - type
+def new_mask_file(p, v_res, sort_by="SHAPE"):
+    p = Path(p) / f'{v_res}p'  # output path
 
-    # TODO:
-    # calculated brightness levels, such as normalised (maybe)
-    brightness_levels = {}
+    h, w = len(SM_MATRIX), len(SM_MATRIX[0])
 
-    def __init__(self, name, matrix, author, n_dots, pattern_type, limit):
-        self.name = name
-        self.author = author or ""
-        self.pattern = Pattern(matrix, compute=True)
-        self.type = pattern_type or "grid"
-        self.limit = limit or 193.75
-        self.dots = n_dots or 1
+    shape = 'stripe' if h == 1 else 'grid'
+    # max res. of the shadow mask on target output resolution
+    maxres_v = (v_res/h)*SM_DOTS_V if h > 1 else (v_res/w)*SM_DOTS_H
 
-        ppd = self.pattern.get_size() / self.dots  # parts per dot
-        aspect_ratio = self.pattern.width / self.pattern.height
+    # TODO: figure out how (masks like) Squished-VGA can be included as well
+    sm_type = 'accurate' if ((w/SM_DOTS_H) == (h/SM_DOTS_V)) or h == 1 else 'stylised'
 
-        # TODO: check if this is correct
-        self.dots_h = (
-            aspect_ratio * ppd / self.pattern.width / self.dots
-            )
-        self.dots_v = (
-            (1 / aspect_ratio) * ppd / self.pattern.height / self.dots
-            )
+    paths = []
 
-        # "brightness" for on state, "opacity" for off_state
-        # max brightness of lowes on_state (without clipping)
-        # self.max_brightness = self.__get_max_br_range()
-        # self.min_opacity = None
+    # TODO: maybe work with naming the directories depending on shape, tech, etc.
+    # dirs = []
 
-        self.br_base = self.pattern.get_min_on_state()
-        self.br_normalised = self.__get_br_normalised()
-
-    # Return the maximum vertical source resolution that can be
-    # displayed, based on the resolution of the display (output_res_v)
-    def get_max_res_v(self, output_res_v):
-        return output_res_v / self.dots_v
-
-    def get_max_res_h(self, output_res_h):
+    if sort_by == "SHAPE":
         pass
 
-    def get_br_desired_matrix(self, br_desired, op_desired):
-        # convert percentage from 1xx to 1.xx
-        br_desired *= 0.01 if br_desired >= 100 else 1
-        op_desired *= 0.01 if op_desired > 1 else 1
+    if sort_by == "TECH":
+        pass
 
-        # matrix = Pattern(self.pattern.matrix).matrix
-        matrix = []
+    if sort_by == "BRIGHTNESS":
+        pass
 
-        gap = br_desired - self.br_base
+    paths.append(Path(p) / f'2 {sm_type.title()}' / f'{shape.title()}s')
+    if is_recommended_mask(maxres_v):
+        paths.append(Path(p) / '1 Recommended' / f'{sm_type.title()}')
 
-        for j in range(len(self.pattern.matrix)):
-            row = []
-            for i in range(len(self.pattern.matrix[0])):
-                dot = {}
-                src_dot = self.pattern.matrix[j][i]
+    for off in OFF_LEVELS:
+        for on in ON_LEVElS:
+            m = get_sm_matrix(on, off)
 
-                dot["color"] = src_dot["color"]
-                dot["on"] = (
-                    src_dot["on"] + src_dot["ratio"] * gap
-                    )
-                # TODO: enable calculated off state
-                # dot["off"] = src_dot["off"]  # * src_dot["ratio_off"] * self.opacity_base
-                dot["off"] = op_desired  # * src_dot["ratio_off"] * self.opacity_base
+            on = on if on >= 100 else on + 100
 
-                row.append(dot)
-            matrix.append(row)
+            f_name = f'{int(maxres_v)}p_{SM_NAME}_{shape}_br{int(off):02d}'
 
-        return matrix
-
-    # TODO: bug when all colors are gray (division by zero)
-    # TODO: add opacity calculations as well
-    def __get_br_normalised(self):
-        colors = [
-            {
-                "color": "blue",
-                "value": 1,
-                "hex": 0x0000FF,
-            },
-            {
-                "color": "green",
-                "value": 2,
-                "hex": 0x00FF00,
-            },
-            {
-                "color": "cyan",
-                "value": 3,
-                "hex": 0x00FFFF,
-            },
-            {
-                "color": "red",
-                "value": 4,
-                "hex": 0xFF0000,
-            },
-            {
-                "color": "magenta",
-                "value": 5,
-                "hex": 0xFF00FF,
-            },
-            {
-                "color": "yellow",
-                "value": 6,
-                "hex": 0xFFFF00,
-            },
-            {
-                "color": "white",
-                "value": 7,
-                "hex": 0xFFFFFF,
-            },
-        ]
-
-        dist = 0
-
-        # all except gray because it does not have a relevant on state
-        for color in colors:
-            count = self.pattern.get_color_count(color["value"], weighted=True)
-            share = 1 / count if count != 0 else 0
-
-            # calc relative brightness necessary for 'even' distribution
-            share /= calculate_luminance(color["hex"])
-
-            dist += share
-
-        # returns percentage points, e.g. '122'
-        return self.pattern.get_size() / dist * 100
-
-    def get_max_br_range(self, limit):
-        max_ratio = self.pattern.get_max_ratio()
-
-        br_range = limit - max_ratio * self.br_base
-
-        return br_range
+            for p in paths:
+                if not on == 100:
+                    p = p / 'Brighter' / f'Brightness {round(on)}pct'
+                write_mask_file(m, p / f'{f_name}.txt')
 
 
-# see: https://stackoverflow.com/a/69520354
-def calculate_luminance(hex_color):
-    imgPixel = hex_color
+def is_recommended_mask(res, hor=False):
+    return res >= 480 if not hor else 640
 
-    R = (imgPixel & 0xFF0000) >> 16
-    G = (imgPixel & 0x00FF00) >> 8
-    B = (imgPixel & 0x0000FF)
 
-    Y = 0.2126*(R/255.0)**2.2 + 0.7152*(G/255.0)**2.2 + 0.0722*(B/255.0)**2.2
+def write_mask_file(msk, path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with Path(path).open("w") as f:
+        if SM_AUTHOR:
+            f.write(f'# MiSTer Shadowmask File\n')
+            f.write(f'# Author: {SM_AUTHOR}\n') if not SM_AUTHOR is None else None
+            f.write(f'# Name: {SM_NAME}\n') if not SM_NAME is None else None
+            f.write('#\n')
+            f.write(f'# dots_horizontal: {SM_DOTS_H:f}\n')
+            f.write(f'# dots_vertical: {SM_DOTS_V:f}\n')
+            f.write('\n')
+            f.write('v2\n')
+            f.write('\n')
+            f.write(f'{len(msk[0])},{len(msk)}\n')
+            f.write('\n')
 
-    return Y
+            for row in msk:
+                f.write(','.join([f'{p:0{3}x}' for p in row]))
+                f.write('\n')
+
+
+def set_intensity_levels(ons, offs):
+    global ON_LEVElS, OFF_LEVELS
+
+    ON_LEVElS = ons
+    OFF_LEVELS = offs
+
+
+def intensity_b(v):
+    # TODO: optimise maybe with bitwise operation
+    v = round(v if v < 100 else v)
+    return round((v << 4) / 100)
+
+
+def intensity_h(v):
+    # TODO: optimise maybe by substituting division by bitwise op
+    return (v & 0xF) * ((100 >> 4) + 1/(100 & ~(~0 << 4)))

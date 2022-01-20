@@ -1,44 +1,25 @@
 import shutil
-from pathlib import PurePath, Path
+from pathlib import Path
 
-from organiser import Organiser
+import mask as msk
 
-
-# cur_dir = os.path.dirname(os.path.abspath(__file__))
-MASK_ROOT = "masks"
-MASK_SEPARATOR = ","
 
 OUTPUT_DIRECTORY = (
-    PurePath(__file__).parents[1] /
+    Path(__file__).parents[1] /
     "ShadowMasks_MiSTer" /
     "Shadow_Masks" /
-    "Jovec Masks"
+    "MyCustom Masks"
     )
 
-BRIGHTNESS_LEVELS = {
-    "distinct visibility": 4,
-    "subtle visibility": 8,
-    "extra subtle visibility": 10,
-}
-
-FACTOR = 6.25
-STEPS = 15
-
-# Color codes. See https://github.com/MiSTer-devel/ShadowMasks_MiSTer
-# gray    0
-# blue    1
-# green   2
-# cyan    3
-# red     4
-# magenta 5
-# yellow  6
-# white   7
-
-
-# Delete all filters and regenerate them
 if Path(OUTPUT_DIRECTORY).exists():
     shutil.rmtree(OUTPUT_DIRECTORY)
 
-o = Organiser()
-o.collect_pattern_files(MASK_ROOT)
-o.generate_pattern_files(OUTPUT_DIRECTORY)
+msk.set_intensity_levels(
+    [100, 110, 125, 137.5, 150],
+    [25, 37.5, 50],
+    )
+for path in sorted(Path('approved').glob('**/*.txt')):
+    msk.get_mask_file(path)
+    msk.new_mask_file(OUTPUT_DIRECTORY, 1440)
+    msk.new_mask_file(OUTPUT_DIRECTORY, 1080)
+    msk.new_mask_file(OUTPUT_DIRECTORY, 720)
