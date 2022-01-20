@@ -1,9 +1,0 @@
-# Author: Jovec
-# Name: MagentaGreen
-#
-# dots_horizontal: 2
-
-4,2
-
-0, 0, 5, 2
-5, 2, 0, 0
